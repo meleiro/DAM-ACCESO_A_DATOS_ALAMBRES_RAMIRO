@@ -157,6 +157,22 @@ public class VentanaPrincipal extends JFrame {
 
     private void probarConexion() {
 
+        try (Connection con = ConexionBD.obtenerConexion()){
+
+            lblEstado.setText("BBDDD: Conexión correcto" + con.getMetaData().getURL());
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Conexión realizada correctamente",
+                    "JDBC",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+
+
+        } catch (SQLException ex){
+            lblEstado.setText("BBDDD: error");
+
+        }
 
     }
 
