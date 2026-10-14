@@ -372,7 +372,7 @@ public final class ConexionBD {
      * No sería la solución apropiada para producción.
      */
     private static final String PASSWORD =
-            "tienda124";
+            "tienda1234";
 
 
 

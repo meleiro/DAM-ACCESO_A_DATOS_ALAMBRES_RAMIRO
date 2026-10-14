@@ -925,4 +925,53 @@ public class ClienteDAO {
         return resultado;
     }
 
+    public void insertar(Cliente cliente) throws SQLException {
+        String sql = """
+                   INSERT INTO cliente(nombre, email, activo)
+                   VALUES (? , ? , ?)
+                """;
+        try (   Connection con = ConexionBD.obtenerConexion();
+                PreparedStatement ps = con.prepareStatement(
+                     sql, Statement.RETURN_GENERATED_KEYS
+                )
+                ) {
+                    ps.setString( 1  , cliente.getNombre() );
+                    ps.setString( 2  , cliente.getEmail() );
+                    ps.setBoolean(3 ,  cliente.isActivo());
+
+                    ps.executeUpdate();
+
+                    try ( ResultSet claves = ps.getGeneratedKeys()) {
+                        if (claves.next()){
+                            cliente.setId(claves.getInt(1));
+                        }
+                    }
+
+
+        }
+
+    }
+
+
+    public boolean actualizar(Cliente cliente) throws SQLException {
+
+        String sql = """
+                UPDATE cliente
+                SET nombre = ?, email = ?, activo = ?
+                WHERE id = ?
+                """;
+
+        try (Connection con = ConexionBD.obtenerConexion();
+        PreparedStatement ps = con.prepareStatement(sql)){
+            ps.setString(1 , cliente.getNombre());
+            ps.setString(2 , cliente.getEmail());
+            ps.setBoolean(3 , cliente.isActivo());
+            ps.setInt(4 , cliente.getId());
+
+            return ps.executeUpdate() == 1;
+        }
+    }
+
+
+
 }
