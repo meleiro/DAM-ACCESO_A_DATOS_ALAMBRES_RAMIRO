@@ -925,53 +925,1124 @@ public class ClienteDAO {
         return resultado;
     }
 
+    /**
+     * ================================================================
+     * MÉTODO insertar(Cliente cliente)
+     * ================================================================
+     *
+     * OBJETIVO:
+     *
+     * Insertar un nuevo cliente en la tabla "cliente"
+     * de nuestra base de datos PostgreSQL.
+     *
+     *
+     * ---------------------------------------------------------------
+     * ¿QUÉ RECIBE ESTE MÉTODO?
+     * ---------------------------------------------------------------
+     *
+     * Recibe un objeto de nuestra clase Cliente:
+     *
+     *      Cliente cliente
+     *
+     * Por ejemplo:
+     *
+     *      Cliente cliente = new Cliente(
+     *              0,
+     *              "Ana",
+     *              "ana@email.com",
+     *              true
+     *      );
+     *
+     *
+     * Este objeto contiene los datos que queremos guardar
+     * en PostgreSQL.
+     *
+     *
+     * ---------------------------------------------------------------
+     * ¿QUÉ QUEREMOS CONSEGUIR?
+     * ---------------------------------------------------------------
+     *
+     * Convertir:
+     *
+     *      OBJETO JAVA
+     *
+     *      Cliente
+     *          id     = 0
+     *          nombre = "Ana"
+     *          email  = "ana@email.com"
+     *          activo = true
+     *
+     * en:
+     *
+     *      FILA DE POSTGRESQL
+     *
+     *      id | nombre | email          | activo
+     *      ---+--------+----------------+-------
+     *       1 | Ana    | ana@email.com  | true
+     *
+     *
+     * IMPORTANTE:
+     *
+     * El ID lo genera automáticamente PostgreSQL.
+     *
+     * Por eso no lo incluiremos en la sentencia INSERT.
+     *
+     * Después recuperaremos el ID generado y lo guardaremos
+     * en el mismo objeto Cliente que hemos recibido.
+     *
+     *
+     * ---------------------------------------------------------------
+     * ¿QUÉ DEVUELVE?
+     * ---------------------------------------------------------------
+     *
+     * El método está declarado:
+     *
+     *      void
+     *
+     * Por tanto, no devuelve ningún valor.
+     *
+     * Sin embargo, sí puede MODIFICAR el objeto Cliente
+     * recibido como argumento, asignándole el ID generado.
+     *
+     *
+     * ---------------------------------------------------------------
+     * throws SQLException
+     * ---------------------------------------------------------------
+     *
+     * Indica que este método puede producir una excepción
+     * relacionada con JDBC o con PostgreSQL.
+     *
+     * Algunos ejemplos:
+     *
+     *      - No se puede establecer la conexión.
+     *      - La tabla cliente no existe.
+     *      - El SQL es incorrecto.
+     *      - El email ya existe y tiene una restricción UNIQUE.
+     *      - El usuario no tiene permiso para insertar.
+     *
+     * No capturamos aquí la excepción.
+     *
+     * La propagamos al código que llamó al método.
+     */
     public void insertar(Cliente cliente) throws SQLException {
+
+
+        /*
+         * ============================================================
+         * PASO 1: PREPARAR LA SENTENCIA SQL
+         * ============================================================
+         *
+         * Vamos a insertar una fila en la tabla:
+         *
+         *      cliente
+         *
+         *
+         * Nuestra tabla tiene estas columnas:
+         *
+         *      id
+         *      nombre
+         *      email
+         *      activo
+         *
+         *
+         * Pero en el INSERT solamente indicamos:
+         *
+         *      nombre
+         *      email
+         *      activo
+         *
+         *
+         * ¿POR QUÉ NO INCLUIMOS id?
+         *
+         * Porque la columna id fue definida en PostgreSQL
+         * para generar automáticamente sus valores.
+         *
+         * En nuestro proyecto utilizamos:
+         *
+         *      GENERATED ALWAYS AS IDENTITY
+         *
+         *
+         * ------------------------------------------------------------
+         * LOS SIGNOS DE INTERROGACIÓN ?
+         * ------------------------------------------------------------
+         *
+         * Observad:
+         *
+         *      VALUES (?, ?, ?)
+         *
+         *
+         * Cada ? representa un parámetro cuyo valor
+         * estableceremos posteriormente desde Java.
+         *
+         *
+         *      INSERT INTO cliente(nombre, email, activo)
+         *      VALUES (     ?  ,    ? ,    ?  )
+         *                   |       |      |
+         *                   |       |      |
+         *                   1       2      3
+         *
+         *
+         *      Parámetro 1 -> nombre
+         *      Parámetro 2 -> email
+         *      Parámetro 3 -> activo
+         *
+         *
+         * ATENCIÓN:
+         *
+         * Los parámetros de PreparedStatement empiezan
+         * en la posición 1, NO en la posición 0.
+         *
+         *
+         * ------------------------------------------------------------
+         * ¿POR QUÉ UTILIZAMOS ? EN VEZ DE CONCATENAR STRINGS?
+         * ------------------------------------------------------------
+         *
+         * Porque PreparedStatement permite enviar los valores
+         * como parámetros de manera segura.
+         *
+         * Además, evita que tengamos que construir manualmente
+         * las comillas y los escapes de los valores SQL.
+         *
+         * Esto es especialmente importante para prevenir
+         * problemas de inyección SQL.
+         */
         String sql = """
-                   INSERT INTO cliente(nombre, email, activo)
-                   VALUES (? , ? , ?)
-                """;
-        try (   Connection con = ConexionBD.obtenerConexion();
+            INSERT INTO cliente(nombre, email, activo)
+            VALUES (?, ?, ?)
+            """;
+
+
+        /*
+         * ============================================================
+         * PASO 2: ABRIR LOS RECURSOS JDBC
+         * ============================================================
+         *
+         * Utilizamos try-with-resources.
+         *
+         * Ya conocemos esta estructura de la unidad de ficheros:
+         *
+         *      try (BufferedReader br = ...) {
+         *
+         *      }
+         *
+         *
+         * Ahora trabajamos con:
+         *
+         *      Connection
+         *      PreparedStatement
+         *
+         *
+         * Java cerrará automáticamente estos recursos
+         * al finalizar el bloque try, incluso si ocurre
+         * una excepción durante su utilización.
+         */
+        try (
+
+                /*
+                 * ====================================================
+                 * 2.1. CONNECTION
+                 * ====================================================
+                 *
+                 * Solicitamos una conexión con PostgreSQL.
+                 *
+                 * Utilizamos nuestra clase:
+                 *
+                 *      ConexionBD
+                 *
+                 * y su método estático:
+                 *
+                 *      obtenerConexion()
+                 *
+                 *
+                 * Este método devuelve un objeto Connection.
+                 *
+                 *
+                 *      ClienteDAO
+                 *          |
+                 *          v
+                 *      ConexionBD.obtenerConexion()
+                 *          |
+                 *          v
+                 *      Connection
+                 *          |
+                 *          v
+                 *      PostgreSQL
+                 */
+                Connection con = ConexionBD.obtenerConexion();
+
+
+                /*
+                 * ====================================================
+                 * 2.2. PREPAREDSTATEMENT
+                 * ====================================================
+                 *
+                 * Preparamos la sentencia SQL utilizando
+                 * la conexión que acabamos de obtener.
+                 *
+                 *
+                 * En este caso utilizamos una sobrecarga especial
+                 * del método prepareStatement():
+                 *
+                 *      con.prepareStatement(
+                 *              sql,
+                 *              Statement.RETURN_GENERATED_KEYS
+                 *      )
+                 *
+                 *
+                 * ----------------------------------------------------
+                 * PRIMER ARGUMENTO: sql
+                 * ----------------------------------------------------
+                 *
+                 * Contiene la sentencia INSERT que hemos definido.
+                 *
+                 *
+                 * ----------------------------------------------------
+                 * SEGUNDO ARGUMENTO: RETURN_GENERATED_KEYS
+                 * ----------------------------------------------------
+                 *
+                 * Indica que queremos poder recuperar
+                 * las claves generadas por la base de datos
+                 * durante la inserción.
+                 *
+                 *
+                 * ¿PARA QUÉ NECESITAMOS ESTO?
+                 *
+                 * Porque PostgreSQL asignará automáticamente
+                 * un nuevo ID al cliente.
+                 *
+                 *
+                 * Por ejemplo:
+                 *
+                 *      INSERT INTO cliente(...)
+                 *
+                 *              |
+                 *              v
+                 *
+                 *          PostgreSQL
+                 *
+                 *              |
+                 *              v
+                 *
+                 *      genera automáticamente id = 15
+                 *
+                 *
+                 * Queremos conocer ese 15 desde Java.
+                 *
+                 * Por eso solicitamos las claves generadas.
+                 *
+                 *
+                 * IMPORTANTE:
+                 *
+                 * RETURN_GENERATED_KEYS es una constante
+                 * de la interfaz Statement.
+                 *
+                 * No significa que aquí estemos creando
+                 * un objeto Statement.
+                 *
+                 * Seguimos utilizando un PreparedStatement.
+                 */
                 PreparedStatement ps = con.prepareStatement(
-                     sql, Statement.RETURN_GENERATED_KEYS
+                        sql,
+                        Statement.RETURN_GENERATED_KEYS
                 )
-                ) {
-                    ps.setString( 1  , cliente.getNombre() );
-                    ps.setString( 2  , cliente.getEmail() );
-                    ps.setBoolean(3 ,  cliente.isActivo());
 
-                    ps.executeUpdate();
-
-                    try ( ResultSet claves = ps.getGeneratedKeys()) {
-                        if (claves.next()){
-                            cliente.setId(claves.getInt(1));
-                        }
-                    }
+        ) {
 
 
+            /*
+             * ========================================================
+             * PASO 3: ASIGNAR VALORES A LOS PARÁMETROS
+             * ========================================================
+             *
+             * Ahora tenemos preparada esta sentencia:
+             *
+             *      INSERT INTO cliente(nombre, email, activo)
+             *      VALUES (?, ?, ?)
+             *
+             *
+             * Pero todavía necesitamos proporcionar
+             * los valores de los tres interrogantes.
+             *
+             *
+             * Utilizaremos los métodos:
+             *
+             *      setString()
+             *      setBoolean()
+             *
+             *
+             * Cada uno recibe:
+             *
+             *      posición del parámetro
+             *
+             * y:
+             *
+             *      valor que queremos asignarle
+             */
+
+
+            /*
+             * --------------------------------------------------------
+             * PRIMER PARÁMETRO: nombre
+             * --------------------------------------------------------
+             *
+             * ps.setString(1, ...)
+             *
+             * significa:
+             *
+             *      "Asigna un String al primer interrogante".
+             *
+             *
+             * El valor procede del objeto Cliente:
+             *
+             *      cliente.getNombre()
+             *
+             *
+             * Si el cliente se llama Ana:
+             *
+             *      parámetro 1 -> "Ana"
+             */
+            ps.setString(1, cliente.getNombre());
+
+
+            /*
+             * --------------------------------------------------------
+             * SEGUNDO PARÁMETRO: email
+             * --------------------------------------------------------
+             *
+             * Asignamos al segundo interrogante
+             * el email del cliente.
+             *
+             *
+             *      parámetro 2 -> "ana@email.com"
+             */
+            ps.setString(2, cliente.getEmail());
+
+
+            /*
+             * --------------------------------------------------------
+             * TERCER PARÁMETRO: activo
+             * --------------------------------------------------------
+             *
+             * La columna activo es de tipo BOOLEAN
+             * en PostgreSQL.
+             *
+             * Por eso utilizamos:
+             *
+             *      setBoolean()
+             *
+             *
+             * El valor puede ser:
+             *
+             *      true
+             *
+             * o:
+             *
+             *      false
+             *
+             *
+             *      parámetro 3 -> true
+             */
+            ps.setBoolean(3, cliente.isActivo());
+
+
+            /*
+             * ========================================================
+             * PASO 4: EJECUTAR EL INSERT
+             * ========================================================
+             *
+             * Una vez asignados los parámetros,
+             * ya podemos ejecutar la sentencia SQL.
+             *
+             *
+             * Utilizamos:
+             *
+             *      executeUpdate()
+             *
+             *
+             * RECORDATORIO:
+             *
+             *      SELECT
+             *          |
+             *          v
+             *      executeQuery()
+             *
+             *
+             *      INSERT / UPDATE / DELETE
+             *          |
+             *          v
+             *      executeUpdate()
+             *
+             *
+             * executeUpdate() devuelve un int con el número
+             * de filas afectadas por la operación.
+             *
+             *
+             * En nuestro caso, si insertamos correctamente
+             * un cliente, normalmente será:
+             *
+             *      1
+             *
+             *
+             * En este método no guardamos ese valor
+             * porque solamente queremos ejecutar el INSERT
+             * y recuperar posteriormente el ID generado.
+             *
+             *
+             * IMPORTANTE:
+             *
+             * Los valores se envían a PostgreSQL
+             * al ejecutar esta instrucción.
+             *
+             * Las llamadas setString() y setBoolean()
+             * anteriores únicamente preparaban los parámetros.
+             */
+            ps.executeUpdate();
+
+
+            /*
+             * ========================================================
+             * PASO 5: RECUPERAR EL ID GENERADO
+             * ========================================================
+             *
+             * PostgreSQL ya ha ejecutado el INSERT.
+             *
+             * Ahora queremos conocer el ID que ha asignado
+             * automáticamente al nuevo cliente.
+             *
+             *
+             * Para ello utilizamos:
+             *
+             *      ps.getGeneratedKeys()
+             *
+             *
+             * Este método devuelve un ResultSet.
+             *
+             *
+             * ¡ATENCIÓN!
+             *
+             * Aunque estamos realizando un INSERT,
+             * aquí también aparece un ResultSet.
+             *
+             * Pero NO contiene el resultado de un SELECT
+             * que hayamos escrito nosotros.
+             *
+             * Contiene información sobre las claves
+             * generadas durante la inserción.
+             *
+             *
+             * Lo llamamos:
+             *
+             *      claves
+             *
+             *
+             * Utilizamos otro try-with-resources
+             * para que este ResultSet se cierre
+             * automáticamente cuando terminemos.
+             */
+            try (ResultSet claves = ps.getGeneratedKeys()) {
+
+
+                /*
+                 * ====================================================
+                 * PASO 6: AVANZAR EL CURSOR DEL RESULTSET
+                 * ====================================================
+                 *
+                 * Recordad el error que habíamos visto:
+                 *
+                 *      ResultSet not positioned properly,
+                 *      perhaps you need to call next
+                 *
+                 *
+                 * Un ResultSet comienza con el cursor
+                 * situado ANTES de la primera fila.
+                 *
+                 * Por eso no podemos leer directamente:
+                 *
+                 *      claves.getInt(1)
+                 *
+                 *
+                 * Primero debemos llamar a:
+                 *
+                 *      claves.next()
+                 *
+                 *
+                 * Si devuelve true:
+                 *
+                 *      existe una fila con información
+                 *      sobre la clave generada.
+                 *
+                 *
+                 * Si devuelve false:
+                 *
+                 *      no tenemos ninguna fila que leer.
+                 *
+                 *
+                 * Utilizamos if porque solamente necesitamos
+                 * recuperar la clave del cliente insertado.
+                 */
+                if (claves.next()) {
+
+
+                    /*
+                     * ================================================
+                     * PASO 7: ASIGNAR EL ID AL OBJETO CLIENTE
+                     * ================================================
+                     *
+                     * Recuperamos el valor entero situado
+                     * en la primera columna del ResultSet.
+                     *
+                     *
+                     *      claves.getInt(1)
+                     *
+                     *
+                     * ATENCIÓN:
+                     *
+                     * Aquí el 1 indica la PRIMERA COLUMNA
+                     * del ResultSet.
+                     *
+                     * No indica el ID del cliente.
+                     *
+                     *
+                     * Por ejemplo, si PostgreSQL ha generado:
+                     *
+                     *      id = 15
+                     *
+                     * obtendremos:
+                     *
+                     *      claves.getInt(1) -> 15
+                     *
+                     *
+                     * Después llamamos a:
+                     *
+                     *      cliente.setId(...)
+                     *
+                     *
+                     * para actualizar el objeto Cliente
+                     * que recibimos como parámetro.
+                     *
+                     *
+                     * ANTES DEL INSERT:
+                     *
+                     *      cliente.id = 0
+                     *
+                     *
+                     * DESPUÉS DEL INSERT:
+                     *
+                     *      cliente.id = 15
+                     *
+                     *
+                     * No estamos creando un objeto Cliente nuevo.
+                     *
+                     * Estamos modificando el mismo objeto
+                     * que recibimos al entrar en el método.
+                     *
+                     *
+                     * Esto es posible porque los objetos
+                     * en Java se pasan mediante una copia
+                     * del valor de su referencia.
+                     *
+                     * Por tanto, el método que llamó a insertar()
+                     * también podrá observar el nuevo ID
+                     * en ese mismo objeto.
+                     */
+                    cliente.setId(claves.getInt(1));
+                }
+            }
+
+
+            /*
+             * ========================================================
+             * PASO 8: CIERRE DE RECURSOS
+             * ========================================================
+             *
+             * Al salir del try interno se cierra:
+             *
+             *      ResultSet claves
+             *
+             *
+             * Al salir del try externo se cierran:
+             *
+             *      PreparedStatement ps
+             *
+             *      Connection con
+             *
+             *
+             * Todo ello automáticamente.
+             */
         }
-
     }
 
-
+    /**
+     * ================================================================
+     * MÉTODO actualizar(Cliente cliente)
+     * ================================================================
+     *
+     * OBJETIVO:
+     *
+     * Actualizar los datos de un cliente que ya existe
+     * en la tabla cliente de PostgreSQL.
+     *
+     *
+     * ---------------------------------------------------------------
+     * DIFERENCIA ENTRE INSERT Y UPDATE
+     * ---------------------------------------------------------------
+     *
+     * INSERT:
+     *
+     *      Crea una fila NUEVA.
+     *
+     *
+     * UPDATE:
+     *
+     *      Modifica una fila EXISTENTE.
+     *
+     *
+     * Por ejemplo:
+     *
+     * ANTES:
+     *
+     *      id | nombre | email          | activo
+     *      ---+--------+----------------+-------
+     *       5 | Ana    | ana@email.com  | true
+     *
+     *
+     * DESPUÉS:
+     *
+     *      id | nombre | email             | activo
+     *      ---+--------+-------------------+-------
+     *       5 | Ana    | ana.nuevo@mail.es | false
+     *
+     *
+     * Fijaos en que el ID sigue siendo 5.
+     *
+     * No estamos creando otro cliente.
+     *
+     * Estamos modificando los datos del cliente
+     * que ya tenía ese identificador.
+     *
+     *
+     * ---------------------------------------------------------------
+     * PARÁMETRO
+     * ---------------------------------------------------------------
+     *
+     * Recibimos:
+     *
+     *      Cliente cliente
+     *
+     * Este objeto debe contener:
+     *
+     *      id
+     *      nombre
+     *      email
+     *      activo
+     *
+     *
+     * El ID es especialmente importante porque lo utilizaremos
+     * para localizar la fila que queremos modificar.
+     *
+     *
+     * ---------------------------------------------------------------
+     * VALOR DEVUELTO: boolean
+     * ---------------------------------------------------------------
+     *
+     * Este método devuelve:
+     *
+     *      true
+     *
+     * si la sentencia UPDATE ha afectado exactamente
+     * a una fila.
+     *
+     *
+     * Devuelve:
+     *
+     *      false
+     *
+     * si la sentencia UPDATE no ha afectado exactamente
+     * a una fila.
+     *
+     *
+     * En nuestra tabla, donde id es PRIMARY KEY,
+     * el UPDATE puede afectar normalmente:
+     *
+     *      0 filas -> no existe ese ID.
+     *
+     *      1 fila  -> existe ese ID y se ha actualizado.
+     *
+     *
+     * IMPORTANTE:
+     *
+     * Este boolean NO indica si los valores nuevos
+     * son distintos de los antiguos.
+     *
+     * Indica si el número de filas afectadas es 1.
+     *
+     *
+     * ---------------------------------------------------------------
+     * throws SQLException
+     * ---------------------------------------------------------------
+     *
+     * Propagamos cualquier error JDBC o SQL al código
+     * que haya llamado a este método.
+     */
     public boolean actualizar(Cliente cliente) throws SQLException {
 
+
+        /*
+         * ============================================================
+         * PASO 1: PREPARAR LA SENTENCIA UPDATE
+         * ============================================================
+         *
+         * La sentencia SQL es:
+         *
+         *      UPDATE cliente
+         *      SET nombre = ?, email = ?, activo = ?
+         *      WHERE id = ?
+         *
+         *
+         * Vamos a analizarla.
+         *
+         *
+         * ------------------------------------------------------------
+         * UPDATE cliente
+         * ------------------------------------------------------------
+         *
+         * Indica qué tabla queremos modificar.
+         *
+         * En nuestro caso:
+         *
+         *      cliente
+         *
+         *
+         * ------------------------------------------------------------
+         * SET
+         * ------------------------------------------------------------
+         *
+         * Indica qué columnas queremos actualizar.
+         *
+         *
+         *      nombre = ?
+         *
+         *      email = ?
+         *
+         *      activo = ?
+         *
+         *
+         * Los nuevos valores procederán del objeto Cliente
+         * recibido como parámetro.
+         *
+         *
+         * ------------------------------------------------------------
+         * WHERE id = ?
+         * ------------------------------------------------------------
+         *
+         * Esta condición es FUNDAMENTAL.
+         *
+         * Indica qué cliente queremos modificar.
+         *
+         *
+         * Por ejemplo:
+         *
+         *      WHERE id = 5
+         *
+         * significa:
+         *
+         *      "Actualiza solamente el cliente cuyo ID sea 5".
+         *
+         *
+         * ¡MUCHO CUIDADO!
+         *
+         * Si escribiéramos:
+         *
+         *      UPDATE cliente
+         *      SET activo = false
+         *
+         * SIN WHERE, estaríamos modificando TODAS
+         * las filas de la tabla.
+         *
+         *
+         * ------------------------------------------------------------
+         * ORDEN DE LOS PARÁMETROS
+         * ------------------------------------------------------------
+         *
+         * Nuestra sentencia contiene CUATRO interrogantes:
+         *
+         *
+         *      UPDATE cliente
+         *
+         *      SET nombre = ?, email = ?, activo = ?
+         *                   1          2           3
+         *
+         *      WHERE id = ?
+         *                 4
+         *
+         *
+         * Por tanto:
+         *
+         *      1 -> nombre
+         *      2 -> email
+         *      3 -> activo
+         *      4 -> id
+         *
+         *
+         * El orden es muy importante.
+         *
+         * No depende del orden de las columnas
+         * en la tabla de PostgreSQL.
+         *
+         * Depende del orden en que aparecen
+         * los signos ? en nuestra sentencia SQL.
+         */
         String sql = """
-                UPDATE cliente
-                SET nombre = ?, email = ?, activo = ?
-                WHERE id = ?
-                """;
+            UPDATE cliente
+            SET nombre = ?, email = ?, activo = ?
+            WHERE id = ?
+            """;
 
-        try (Connection con = ConexionBD.obtenerConexion();
-        PreparedStatement ps = con.prepareStatement(sql)){
-            ps.setString(1 , cliente.getNombre());
-            ps.setString(2 , cliente.getEmail());
-            ps.setBoolean(3 , cliente.isActivo());
-            ps.setInt(4 , cliente.getId());
 
+        /*
+         * ============================================================
+         * PASO 2: ABRIR CONEXIÓN Y PREPARAR LA SENTENCIA
+         * ============================================================
+         *
+         * Volvemos a utilizar try-with-resources.
+         *
+         *
+         * Necesitamos:
+         *
+         *      Connection
+         *
+         * y:
+         *
+         *      PreparedStatement
+         *
+         *
+         * No necesitamos solicitar claves generadas
+         * porque NO estamos insertando un cliente nuevo.
+         *
+         * Estamos modificando uno que ya tiene ID.
+         *
+         *
+         * Por eso aquí basta con:
+         *
+         *      con.prepareStatement(sql)
+         *
+         *
+         * y NO utilizamos:
+         *
+         *      Statement.RETURN_GENERATED_KEYS
+         */
+        try (
+
+                /*
+                 * Obtenemos una conexión con PostgreSQL.
+                 */
+                Connection con = ConexionBD.obtenerConexion();
+
+
+                /*
+                 * Preparamos nuestra sentencia UPDATE.
+                 */
+                PreparedStatement ps = con.prepareStatement(sql)
+
+        ) {
+
+
+            /*
+             * ========================================================
+             * PASO 3: ASIGNAR LOS VALORES A LOS INTERROGANTES
+             * ========================================================
+             *
+             * Tenemos cuatro parámetros.
+             *
+             * Debemos proporcionar los cuatro valores
+             * antes de ejecutar la sentencia.
+             */
+
+
+            /*
+             * --------------------------------------------------------
+             * PARÁMETRO 1: nombre
+             * --------------------------------------------------------
+             *
+             * Asignamos al primer interrogante
+             * el nombre del cliente.
+             */
+            ps.setString(1, cliente.getNombre());
+
+
+            /*
+             * --------------------------------------------------------
+             * PARÁMETRO 2: email
+             * --------------------------------------------------------
+             *
+             * Asignamos al segundo interrogante
+             * el email del cliente.
+             */
+            ps.setString(2, cliente.getEmail());
+
+
+            /*
+             * --------------------------------------------------------
+             * PARÁMETRO 3: activo
+             * --------------------------------------------------------
+             *
+             * Asignamos al tercer interrogante
+             * el estado activo del cliente.
+             *
+             * Utilizamos setBoolean() porque la columna
+             * es de tipo BOOLEAN en PostgreSQL.
+             */
+            ps.setBoolean(3, cliente.isActivo());
+
+
+            /*
+             * --------------------------------------------------------
+             * PARÁMETRO 4: id
+             * --------------------------------------------------------
+             *
+             * Este parámetro se utilizará en:
+             *
+             *      WHERE id = ?
+             *
+             *
+             * Es el dato que permite identificar
+             * qué fila queremos actualizar.
+             *
+             *
+             * Por ejemplo:
+             *
+             *      cliente.getId() -> 5
+             *
+             *
+             * hará que la condición sea equivalente a:
+             *
+             *      WHERE id = 5
+             *
+             *
+             * IMPORTANTE:
+             *
+             * Utilizamos setInt() porque id es
+             * de tipo INTEGER en PostgreSQL.
+             */
+            ps.setInt(4, cliente.getId());
+
+
+            /*
+             * ========================================================
+             * PASO 4: EJECUTAR EL UPDATE
+             * ========================================================
+             *
+             * Ahora que hemos asignado los cuatro parámetros,
+             * ejecutamos la sentencia.
+             *
+             *
+             * Utilizamos:
+             *
+             *      executeUpdate()
+             *
+             *
+             * Este método devuelve un int:
+             *
+             *      número de filas afectadas
+             *
+             *
+             * Por ejemplo:
+             *
+             *      0 -> no se ha encontrado ninguna fila
+             *           que cumpla WHERE id = ?
+             *
+             *      1 -> se ha actualizado una fila
+             *
+             *
+             * Como id es PRIMARY KEY, no puede haber
+             * dos clientes con el mismo ID.
+             *
+             * Por tanto, en nuestra tabla el resultado
+             * normal será 0 o 1.
+             *
+             *
+             * --------------------------------------------------------
+             * ¿QUÉ SIGNIFICA == 1?
+             * --------------------------------------------------------
+             *
+             * Observad:
+             *
+             *      ps.executeUpdate() == 1
+             *
+             *
+             * Primero se ejecuta:
+             *
+             *      ps.executeUpdate()
+             *
+             *
+             * Supongamos que devuelve:
+             *
+             *      1
+             *
+             *
+             * Entonces Java evalúa:
+             *
+             *      1 == 1
+             *
+             *
+             * Resultado:
+             *
+             *      true
+             *
+             *
+             * Si devuelve:
+             *
+             *      0
+             *
+             *
+             * Java evalúa:
+             *
+             *      0 == 1
+             *
+             *
+             * Resultado:
+             *
+             *      false
+             *
+             *
+             * Por tanto, podemos devolver directamente
+             * el resultado de esa comparación.
+             *
+             *
+             * IMPORTANTE:
+             *
+             *      ==  -> operador de comparación
+             *
+             *      =   -> operador de asignación
+             *
+             *
+             * Aquí necesitamos == porque queremos comparar
+             * el número de filas afectadas con el valor 1.
+             */
             return ps.executeUpdate() == 1;
         }
+
+
+        /*
+         * ============================================================
+         * PASO 5: CIERRE AUTOMÁTICO DE RECURSOS
+         * ============================================================
+         *
+         * Aunque el return está dentro del try,
+         * Java cerrará automáticamente los recursos
+         * antes de completar la salida del método.
+         *
+         *
+         * Se cerrarán:
+         *
+         *      PreparedStatement
+         *
+         *      Connection
+         *
+         *
+         * Si durante el cierre ocurre una SQLException,
+         * también podrá propagarse.
+         */
     }
-
-
 
 }
