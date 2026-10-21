@@ -223,9 +223,15 @@ public class VentanaPrincipal extends JFrame {
         );
 
         if (respuesta != JOptionPane.YES_OPTION) {
-            return;
+           return;
         }
 
+        try {
+            clienteDAO.eliminar(id);
+            cargarClientes();
+        } catch (SQLException e){
+            mostrarError("Erro eliminando cliente : \n" + e.getMessage());
+        }
 
     }
 

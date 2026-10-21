@@ -2045,4 +2045,16 @@ public class ClienteDAO {
          */
     }
 
+    public boolean eliminar(int id) throws SQLException{
+        String sql = "DELETE FROM cliente WHERE id = ?";
+
+        try (Connection con = ConexionBD.obtenerConexion();
+         PreparedStatement ps = con.prepareStatement(sql)){
+            ps.setInt(1, id);
+
+            return ps.executeUpdate() == 1;
+
+        }
+    }
+
 }
