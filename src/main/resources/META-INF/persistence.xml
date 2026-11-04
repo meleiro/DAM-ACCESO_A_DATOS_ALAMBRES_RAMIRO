@@ -254,12 +254,13 @@
             En nuestro proyecto las tablas ya existen.
         -->
         <class>modelo.orm.ClienteEntidad</class>
-        <class>modelo.orm.ProductoEntidad</class>
+
 
         <!--
             ========================================================
             PROPIEDADES DE CONFIGURACIÓN: properties
             ========================================================
+            <class>modelo.orm.ProductoEntidad</class>
 
             Dentro de esta etiqueta definimos parámetros que
             utilizará el proveedor de persistencia.

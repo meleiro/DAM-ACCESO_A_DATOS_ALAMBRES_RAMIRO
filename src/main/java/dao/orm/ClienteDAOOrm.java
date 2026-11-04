@@ -1,456 +1,137 @@
 
-/*
- * ================================================================
- * CLASE: ClienteDAOOrm
- * PAQUETE: dao.orm
- * ================================================================
- *
- * OBJETIVO:
- *
- * Implementar las operaciones de acceso a los datos de clientes
- * utilizando ORM (Object-Relational Mapping).
- *
- * En nuestro proyecto anterior teníamos:
- *
- *     dao.ClienteDAO
- *
- * Esa clase utilizaba JDBC directamente:
- *
- *     Connection
- *     PreparedStatement
- *     ResultSet
- *
- * Ahora utilizaremos:
- *
- *     dao.orm.ClienteDAOOrm
- *
- * Esta nueva clase utiliza JPA, con Hibernate como proveedor.
- *
- * La principal diferencia es que ahora trabajaremos con
- * objetos ClienteEntidad y no directamente con filas SQL.
- *
- * IMPORTANTE:
- *
- * El patrón DAO sigue siendo el mismo.
- *
- * Lo que cambia es la tecnología utilizada para acceder
- * a los datos.
- *
- * Ambas implementaciones pueden trabajar con la misma tabla
- * "cliente" de nuestra base de datos PostgreSQL.
- */
-
 package dao.orm;
 
 /*
- * ================================================================
- * IMPORTACIÓN DE JpaUtil
- * ================================================================
+ * JpaUtil proporciona los EntityManager necesarios para
+ * trabajar con Hibernate.
  *
- * JpaUtil es la clase auxiliar que hemos creado en el paquete
- * conexion para centralizar la inicialización de JPA.
+ * En JDBC utilizábamos ConexionBD.obtenerConexion()
+ * para conseguir una conexión de tipo Connection.
  *
- * En el proyecto JDBC utilizábamos:
- *
- *     ConexionBD.obtenerConexion();
- *
- * Ese método nos devolvía un objeto Connection.
- *
- * Ahora utilizaremos:
- *
- *     JpaUtil.abrir();
- *
- * Este método nos devolverá un EntityManager.
- *
- * JpaUtil utiliza internamente una EntityManagerFactory
- * creada a partir de nuestra unidad de persistencia:
- *
- *     tiendaPU
- *
- * Esta unidad está configurada en:
- *
- *     src/main/resources/META-INF/persistence.xml
+ * Con JPA utilizamos JpaUtil.abrir() para obtener
+ * un EntityManager.
  */
 import conexion.JpaUtil;
 
 /*
- * ================================================================
- * IMPORTACIÓN DE EntityManager
- * ================================================================
+ * EntityManager es la interfaz principal de JPA para
+ * consultar, insertar, actualizar y eliminar entidades.
  *
- * EntityManager es una interfaz definida por Jakarta Persistence.
- *
- * Es uno de los elementos más importantes de JPA.
- *
- * Su responsabilidad es gestionar entidades persistentes.
- *
- * Nos permite realizar operaciones como:
- *
- *     em.persist(cliente);
- *         Registrar una nueva entidad.
- *
- *     em.find(ClienteEntidad.class, id);
- *         Buscar una entidad por su clave primaria.
- *
- *     em.remove(cliente);
- *         Eliminar una entidad gestionada.
- *
- *     em.createQuery(...);
- *         Crear una consulta JPQL.
- *
- *     em.getTransaction();
- *         Obtener una transacción local.
- *
- *     em.close();
- *         Cerrar el contexto de persistencia.
- *
- * IMPORTANTE:
- *
- * EntityManager no es exactamente lo mismo que Connection.
- *
- * Connection representa una conexión JDBC.
- *
- * EntityManager gestiona un contexto de persistencia, que
- * permite realizar el seguimiento de objetos Java y sus cambios.
- *
- * Hibernate utiliza conexiones JDBC internamente cuando necesita
- * comunicarse con PostgreSQL.
+ * Hibernate implementa esta interfaz y utiliza JDBC
+ * internamente para comunicarse con PostgreSQL.
  */
 import jakarta.persistence.EntityManager;
 
 /*
- * ================================================================
- * IMPORTACIÓN DE ClienteEntidad
- * ================================================================
+ * ClienteEntidad es la clase que representa la tabla
+ * cliente de nuestra base de datos.
  *
- * ClienteEntidad es nuestra clase Java anotada con:
- *
- *     @Entity
- *     @Table(name = "cliente")
- *
- * Representa los registros de la tabla "cliente".
- *
- * Antes, con JDBC, utilizábamos:
- *
- *     modelo.Cliente
- *
- * Ahora, con Hibernate, utilizaremos:
- *
- *     modelo.orm.ClienteEntidad
- *
- * Cada objeto ClienteEntidad representará los datos
- * de un cliente recuperado desde PostgreSQL.
+ * Está anotada con @Entity y @Table(name = "cliente").
  */
 import modelo.orm.ClienteEntidad;
 
 /*
- * ================================================================
- * IMPORTACIÓN DE List
- * ================================================================
+ * List permite devolver colecciones de entidades.
  *
- * List es una interfaz del framework de colecciones de Java.
+ * En nuestro caso:
  *
- * Representa una colección ordenada de elementos.
+ * List<ClienteEntidad>
  *
- * En nuestro caso utilizaremos:
- *
- *     List<ClienteEntidad>
- *
- * Es decir, una lista de objetos ClienteEntidad.
- *
- * Esta lista podrá contener:
- *
- *     - Ningún cliente.
- *     - Un cliente.
- *     - Varios clientes.
- *
- * El orden de los resultados vendrá determinado por
- * nuestra consulta JPQL, que utiliza ORDER BY c.id.
+ * representa una lista de clientes.
  */
 import java.util.List;
 
-/*
- * ================================================================
- * DECLARACIÓN DE LA CLASE DAO
- * ================================================================
+/**
+ * ============================================================
+ * CLASE ClienteDAOOrm
+ * ============================================================
  *
  * DAO significa Data Access Object.
  *
- * Es un patrón de diseño cuya finalidad es separar
- * el acceso a los datos del resto de la aplicación.
+ * Esta clase centraliza las operaciones de acceso
+ * a los datos de clientes utilizando JPA/Hibernate.
  *
- * La interfaz Swing no necesita saber:
+ * Implementamos las operaciones CRUD:
  *
- *     - Cómo se establece la conexión.
- *     - Cómo se construyen las consultas.
- *     - Cómo se recuperan los registros.
- *     - Cómo se convierten los resultados en objetos.
+ * CREATE -> insertar()
+ * READ   -> listar()
+ * UPDATE -> actualizar()
+ * DELETE -> eliminar()
  *
- * Simplemente podrá solicitar:
+ * La implementación JDBC original permanece intacta.
  *
- *     clienteDAO.listar();
- *
- * La clase DAO se encargará de realizar la operación.
- *
- * Esto facilita el mantenimiento y permite sustituir
- * JDBC por Hibernate sin reconstruir toda la aplicación.
+ * La diferencia principal es que ahora trabajamos
+ * con entidades Java en lugar de construir manualmente
+ * sentencias INSERT, UPDATE y DELETE.
  */
 public class ClienteDAOOrm {
 
     /*
-     * ============================================================
+     * ========================================================
      * MÉTODO listar()
-     * ============================================================
+     * ========================================================
      *
-     * OBJETIVO:
+     * Recupera todos los clientes de PostgreSQL.
      *
-     * Recuperar todos los clientes almacenados en PostgreSQL
-     * y devolverlos como una lista de objetos ClienteEntidad.
+     * Devuelve una lista de objetos ClienteEntidad.
      *
-     * DECLARACIÓN:
+     * Si no existen registros, devuelve una lista vacía.
      *
-     * public:
-     *     Permite llamar al método desde otras clases,
-     *     como VentanaPrincipalORM.
-     *
-     * List<ClienteEntidad>:
-     *     Es el tipo de dato que devuelve el método.
-     *
-     *     No devuelve un ResultSet como ocurría en JDBC.
-     *
-     *     Devuelve una lista de objetos Java.
-     *
-     * listar():
-     *     Es el nombre del método.
-     *
-     *     No recibe parámetros porque queremos recuperar
-     *     todos los clientes, sin aplicar filtros.
-     *
-     * EJEMPLO DE USO:
-     *
-     *     ClienteDAOOrm dao = new ClienteDAOOrm();
-     *
-     *     List<ClienteEntidad> clientes = dao.listar();
-     *
-     *     for (ClienteEntidad cliente : clientes) {
-     *         System.out.println(cliente.getNombre());
-     *     }
+     * No necesita una transacción de escritura porque
+     * únicamente vamos a consultar información.
      */
     public List<ClienteEntidad> listar() {
 
         /*
-         * ========================================================
-         * PASO 1: OBTENER UN EntityManager
-         * ========================================================
+         * Creamos un EntityManager utilizando la factoría
+         * que tenemos configurada en JpaUtil.
          *
-         * Llamamos al método estático abrir() de JpaUtil.
+         * El EntityManager representa un contexto
+         * de persistencia.
          *
-         * Este método devuelve un EntityManager.
-         *
-         * Recordemos que JpaUtil contiene una instrucción
-         * similar a:
-         *
-         *     return FACTORIA.createEntityManager();
-         *
-         * Donde FACTORIA es una EntityManagerFactory.
-         *
-         * IMPORTANTE:
-         *
-         * No estamos creando una nueva EntityManagerFactory
-         * cada vez que llamamos a listar().
-         *
-         * Estamos creando un nuevo EntityManager utilizando
-         * la factoría que ya tiene preparada JpaUtil.
-         *
-         * Esto es importante porque la factoría es un objeto
-         * relativamente costoso de inicializar.
-         *
-         * El EntityManager será nuestro contexto de
-         * persistencia durante esta operación.
+         * Durante su vida, Hibernate puede gestionar
+         * las entidades que recuperemos.
          */
         EntityManager em = JpaUtil.abrir();
 
         /*
-         * ========================================================
-         * PASO 2: BLOQUE try / finally
-         * ========================================================
-         *
-         * Utilizamos try para ejecutar la consulta.
-         *
-         * Utilizamos finally para garantizar que el
-         * EntityManager se cierre al terminar.
-         *
-         * El bloque finally se ejecuta tanto si la consulta
-         * termina correctamente como si se produce una excepción
-         * durante su ejecución.
-         *
-         * Por ejemplo, si PostgreSQL deja de estar disponible,
-         * la consulta puede lanzar una excepción.
-         *
-         * Aunque ocurra ese error, debemos liberar los recursos
-         * asociados al EntityManager.
-         *
-         * IMPORTANTE:
-         *
-         * No utilizamos catch porque aquí hemos decidido
-         * no gestionar la excepción dentro del DAO.
-         *
-         * Si se produce un error de persistencia, se propagará
-         * al método que haya llamado a listar().
-         *
-         * La interfaz Swing podrá capturar esa excepción
-         * y mostrar un mensaje al usuario.
+         * Utilizamos try/finally para garantizar el cierre
+         * del EntityManager aunque ocurra una excepción.
          */
         try {
 
             /*
-             * ====================================================
-             * PASO 3: CREAR UNA CONSULTA JPQL
-             * ====================================================
+             * createQuery() permite escribir consultas JPQL.
              *
-             * Utilizamos:
+             * JPQL se parece a SQL, pero utiliza nombres
+             * de entidades y atributos Java.
              *
-             *     em.createQuery(...)
+             * CONSULTA:
              *
-             * Este método permite crear consultas JPQL.
-             *
-             * JPQL significa:
-             *
-             *     Jakarta Persistence Query Language
-             *
-             * Es un lenguaje de consultas definido por JPA.
-             *
-             * Su sintaxis se parece a SQL, pero existe
-             * una diferencia fundamental:
-             *
-             * SQL trabaja con tablas y columnas.
-             *
-             * JPQL trabaja con entidades y atributos Java.
-             *
-             * NUESTRA CONSULTA:
-             *
-             *     SELECT c
-             *     FROM ClienteEntidad c
-             *     ORDER BY c.id
-             *
-             * DESCOMPOSICIÓN:
+             * SELECT c
+             * FROM ClienteEntidad c
+             * ORDER BY c.id
              *
              * SELECT c:
-             *     Indica que queremos recuperar las entidades
-             *     representadas por el alias c.
+             *     Recupera las entidades identificadas por c.
              *
              * FROM ClienteEntidad:
-             *     Indica la entidad Java que queremos consultar.
-             *
-             *     No escribimos el nombre de la tabla "cliente".
-             *
-             *     Escribimos ClienteEntidad porque es el nombre
-             *     de nuestra entidad JPA.
+             *     Consulta la entidad Java ClienteEntidad.
              *
              * c:
-             *     Es un alias que asignamos a ClienteEntidad.
-             *
-             *     Podríamos haber utilizado otro nombre:
-             *
-             *         SELECT cliente
-             *         FROM ClienteEntidad cliente
-             *
-             *     Pero utilizamos c por comodidad.
+             *     Alias utilizado para referirnos a la entidad.
              *
              * ORDER BY c.id:
              *     Ordena los clientes por su identificador.
              *
-             *     Al no indicar DESC, el orden es ascendente
-             *     por defecto.
+             * ClienteEntidad.class:
+             *     Indica el tipo de objeto que esperamos obtener.
              *
-             *     Por ejemplo:
+             * getResultList():
+             *     Ejecuta la consulta y devuelve una lista.
              *
-             *         ID 1
-             *         ID 2
-             *         ID 3
-             *
-             * Si quisiéramos el orden inverso:
-             *
-             *     ORDER BY c.id DESC
-             *
-             * ====================================================
-             * SEGUNDO PARÁMETRO: ClienteEntidad.class
-             * ====================================================
-             *
-             * ClienteEntidad.class representa el objeto Class
-             * correspondiente al tipo ClienteEntidad.
-             *
-             * Indica a JPA qué tipo de resultado esperamos.
-             *
-             * De esta manera creamos una consulta tipada.
-             *
-             * Su resultado será una lista de ClienteEntidad.
-             *
-             * Esto proporciona seguridad de tipos y evita
-             * tener que convertir manualmente los resultados.
-             *
-             * ====================================================
-             * getResultList()
-             * ====================================================
-             *
-             * Ejecuta la consulta y recupera sus resultados.
-             *
-             * Devuelve:
-             *
-             *     List<ClienteEntidad>
-             *
-             * Hibernate se encarga de:
-             *
-             *     1. Interpretar la consulta JPQL.
-             *
-             *     2. Traducirla a SQL para PostgreSQL.
-             *
-             *     3. Ejecutarla mediante JDBC.
-             *
-             *     4. Recuperar las filas devueltas.
-             *
-             *     5. Crear o recuperar los objetos
-             *        ClienteEntidad correspondientes.
-             *
-             *     6. Cargar sus atributos a partir
-             *        de los valores de las columnas.
-             *
-             *     7. Devolver la lista de entidades.
-             *
-             * IMPORTANTE:
-             *
-             * Si no existen clientes, getResultList()
-             * devuelve una lista vacía.
-             *
-             * No devuelve null simplemente porque
-             * la consulta no haya encontrado registros.
-             *
-             * ====================================================
-             * return
-             * ====================================================
-             *
-             * Devuelve la lista al código que llamó al método.
-             *
-             * Aunque ejecutemos return dentro del try,
-             * Java ejecutará primero el bloque finally.
-             *
-             * Por tanto:
-             *
-             *     1. Se obtiene la lista.
-             *     2. Se ejecuta finally.
-             *     3. Se cierra el EntityManager.
-             *     4. Se devuelve la lista.
-             *
-             * Los objetos ClienteEntidad seguirán existiendo
-             * después del cierre del EntityManager.
-             *
-             * Sin embargo, ya no estarán gestionados por
-             * ese contexto de persistencia.
-             *
-             * Pasarán al estado detached (separados).
-             *
-             * Sus atributos básicos ya cargados podrán
-             * seguir consultándose normalmente.
+             * Hibernate traduce esta consulta a SQL,
+             * la ejecuta y construye los objetos Java.
              */
             return em.createQuery(
                     "SELECT c FROM ClienteEntidad c ORDER BY c.id",
@@ -460,49 +141,439 @@ public class ClienteDAOOrm {
         } finally {
 
             /*
-             * ====================================================
-             * PASO 4: CERRAR EL EntityManager
-             * ====================================================
+             * Cerramos el EntityManager.
              *
-             * Cerramos el EntityManager utilizado para la consulta.
+             * Esto libera su contexto de persistencia.
              *
-             * Esto libera el contexto de persistencia y
-             * los recursos asociados a él.
+             * No cerramos la EntityManagerFactory,
+             * porque seguirá utilizándose en otras operaciones.
              *
-             * IMPORTANTE:
-             *
-             * Cerrar un EntityManager no significa necesariamente
-             * cerrar de forma definitiva una conexión física
-             * con PostgreSQL.
-             *
-             * Hibernate puede utilizar un pool de conexiones,
-             * dependiendo de su configuración.
-             *
-             * Tampoco significa cerrar la EntityManagerFactory.
-             *
-             * La factoría permanece disponible para que otras
-             * operaciones puedan crear nuevos EntityManager.
-             *
-             * Ejemplo:
-             *
-             *     dao.listar();
-             *
-             *     dao.buscar(5);
-             *
-             *     dao.insertar(cliente);
-             *
-             * Cada operación puede obtener su propio
-             * EntityManager a través de JpaUtil.
-             *
-             * ¿POR QUÉ EN FINALLY?
-             *
-             * Porque queremos garantizar su cierre incluso
-             * si la consulta falla.
-             *
-             * Esto evita mantener innecesariamente abiertos
-             * contextos de persistencia y recursos asociados.
+             * Las entidades recuperadas pasan a estar
+             * separadas (detached) de este contexto.
              */
             em.close();
         }
+    }
+
+    /*
+     * ========================================================
+     * MÉTODO insertar()
+     * ========================================================
+     *
+     * OBJETIVO:
+     *
+     * Insertar un nuevo cliente en PostgreSQL.
+     *
+     * PARÁMETRO:
+     *
+     * ClienteEntidad nuevo
+     *
+     * Es el objeto que contiene los datos del cliente
+     * que queremos almacenar.
+     *
+     * Por ejemplo:
+     *
+     * ClienteEntidad cliente = new ClienteEntidad(
+     *     null,
+     *     "Ana",
+     *     "ana@ejemplo.com",
+     *     true
+     * );
+     *
+     * dao.insertar(cliente);
+     *
+     * El identificador se establece inicialmente a null
+     * porque PostgreSQL lo genera automáticamente mediante
+     * la estrategia GenerationType.IDENTITY.
+     *
+     * DIFERENCIA CON JDBC:
+     *
+     * Antes escribíamos una sentencia INSERT INTO cliente...
+     *
+     * Ahora utilizamos em.persist(nuevo).
+     */
+    public void insertar(ClienteEntidad nuevo) {
+
+        /*
+         * TransaccionesORM es una clase auxiliar
+         * que hemos creado en el mismo paquete.
+         *
+         * Su método ejecutar() se encarga de:
+         *
+         * 1. Crear un EntityManager.
+         * 2. Iniciar una transacción.
+         * 3. Ejecutar la operación recibida.
+         * 4. Confirmar con commit().
+         * 5. Revertir con rollback() si ocurre un error.
+         * 6. Cerrar el EntityManager.
+         *
+         * Así evitamos repetir ese código en cada DAO.
+         *
+         * ----------------------------------------------------
+         * ¿QUÉ SIGNIFICA em -> { ... }?
+         * ----------------------------------------------------
+         *
+         * Es una expresión lambda de Java.
+         *
+         * La lambda representa una función que recibe
+         * un EntityManager y ejecuta una operación.
+         *
+         * em:
+         *     Es el parámetro que recibe la lambda.
+         *
+         * ->:
+         *     Separa el parámetro del cuerpo de la función.
+         *
+         * { ... }:
+         *     Contiene las instrucciones que ejecutaremos.
+         *
+         * No creamos aquí el EntityManager.
+         *
+         * Lo crea TransaccionesORM y nos lo proporciona
+         * como argumento de la lambda.
+         */
+        TransaccionesORM.ejecutar(em -> {
+
+            /*
+             * ====================================================
+             * em.persist(nuevo)
+             * ====================================================
+             *
+             * persist() registra una entidad nueva en el
+             * contexto de persistencia.
+             *
+             * El objeto nuevo pasa del estado transient
+             * al estado managed.
+             *
+             * transient:
+             *     Objeto Java que todavía no está gestionado
+             *     por un EntityManager.
+             *
+             * managed:
+             *     Objeto gestionado por Hibernate.
+             *
+             * Hibernate se encargará de realizar el INSERT
+             * necesario para almacenar sus datos.
+             *
+             * IMPORTANTE:
+             *
+             * persist() no equivale exactamente a ejecutar
+             * inmediatamente una sentencia INSERT.
+             *
+             * Normalmente Hibernate sincroniza los cambios
+             * durante flush() o commit().
+             *
+             * Sin embargo, con GenerationType.IDENTITY,
+             * puede necesitar ejecutar el INSERT antes
+             * para obtener el identificador generado.
+             *
+             * El commit() de TransaccionesORM confirma
+             * finalmente la operación.
+             */
+            em.persist(nuevo);
+
+            /*
+             * ====================================================
+             * return null
+             * ====================================================
+             *
+             * TransaccionesORM.ejecutar() recibe una función
+             * que debe devolver un resultado.
+             *
+             * En nuestro caso, insertar() es void.
+             *
+             * No necesitamos devolver ningún dato.
+             *
+             * Por eso devolvemos null desde la lambda.
+             *
+             * Este return pertenece a la lambda,
+             * no al método insertar().
+             */
+            return null;
+        });
+    }
+
+    /*
+     * ========================================================
+     * MÉTODO actualizar()
+     * ========================================================
+     *
+     * OBJETIVO:
+     *
+     * Modificar los datos de un cliente existente.
+     *
+     * PARÁMETRO:
+     *
+     * ClienteEntidad nuevo
+     *
+     * Contiene los nuevos valores que queremos guardar.
+     *
+     * El objeto debe tener un identificador válido.
+     *
+     * VALOR DEVUELTO:
+     *
+     * boolean
+     *
+     * true:
+     *     El cliente existe y la actualización se ha
+     *     confirmado correctamente.
+     *
+     * false:
+     *     No se ha encontrado el cliente.
+     *
+     * Si ocurre un error en la base de datos,
+     * se propagará una excepción.
+     *
+     * DIFERENCIA CON JDBC:
+     *
+     * Antes ejecutábamos una sentencia UPDATE.
+     *
+     * Ahora recuperamos la entidad gestionada
+     * y modificamos sus atributos.
+     */
+    public boolean actualizar(ClienteEntidad nuevo) {
+
+        /*
+         * Ejecutamos la actualización dentro de una transacción.
+         *
+         * Como la lambda devuelve true o false,
+         * TransaccionesORM.ejecutar() devolverá un Boolean
+         * que Java puede convertir automáticamente a boolean.
+         *
+         * A esto se le llama unboxing.
+         */
+        return TransaccionesORM.ejecutar(em -> {
+
+            /*
+             * ====================================================
+             * PASO 1: BUSCAR EL CLIENTE EXISTENTE
+             * ====================================================
+             *
+             * em.find() busca una entidad por su clave primaria.
+             *
+             * Recibe dos argumentos:
+             *
+             * ClienteEntidad.class:
+             *     Tipo de entidad que queremos recuperar.
+             *
+             * nuevo.getId():
+             *     Identificador del cliente que queremos buscar.
+             *
+             * Si existe, Hibernate devuelve una entidad
+             * gestionada por el EntityManager actual.
+             *
+             * Si no existe, devuelve null.
+             *
+             * La variable actual contendrá la entidad
+             * que está asociada al contexto de persistencia.
+             */
+            ClienteEntidad actual = em.find(
+                    ClienteEntidad.class,
+                    nuevo.getId()
+            );
+
+            /*
+             * ====================================================
+             * PASO 2: COMPROBAR SI EXISTE
+             * ====================================================
+             *
+             * Si find() devuelve null, significa que no se
+             * ha encontrado ningún cliente con ese ID.
+             *
+             * En ese caso devolvemos false.
+             *
+             * Aunque la lambda termine aquí,
+             * TransaccionesORM finalizará su transacción
+             * y cerrará el EntityManager.
+             */
+            if (actual == null) {
+                return false;
+            }
+
+            /*
+             * ====================================================
+             * PASO 3: MODIFICAR LOS ATRIBUTOS
+             * ====================================================
+             *
+             * Ahora tenemos dos objetos diferentes:
+             *
+             * nuevo:
+             *     Contiene los valores que queremos guardar.
+             *
+             * actual:
+             *     Es la entidad gestionada por Hibernate.
+             *
+             * Copiamos los valores de nuevo a actual.
+             *
+             * Utilizamos los métodos setter de la entidad.
+             */
+            actual.setNombre(nuevo.getNombre());
+
+            actual.setEmail(nuevo.getEmail());
+
+            actual.setActivo(nuevo.isActivo());
+
+            /*
+             * ====================================================
+             * ¿DÓNDE ESTÁ EL UPDATE?
+             * ====================================================
+             *
+             * No necesitamos escribir:
+             *
+             * UPDATE cliente SET ...
+             *
+             * Tampoco necesitamos llamar a persist(actual).
+             *
+             * La entidad actual ya está gestionada.
+             *
+             * Hibernate utiliza un mecanismo denominado:
+             *
+             * DIRTY CHECKING
+             *
+             * Consiste en detectar modificaciones realizadas
+             * sobre entidades gestionadas.
+             *
+             * Al sincronizar el contexto de persistencia,
+             * Hibernate comprueba los cambios y genera
+             * el SQL necesario.
+             *
+             * Por ejemplo, podría ejecutar:
+             *
+             * UPDATE cliente
+             * SET nombre = ?, email = ?, activo = ?
+             * WHERE id = ?
+             *
+             * La sentencia exacta depende de Hibernate
+             * y de su configuración.
+             *
+             * Finalmente, TransaccionesORM ejecutará commit().
+             */
+
+            /*
+             * Devolvemos true porque hemos encontrado
+             * el cliente y solicitado su actualización.
+             *
+             * El método ejecutar() confirmará la transacción
+             * antes de devolver este resultado al DAO.
+             *
+             * Si commit() falla, se propagará una excepción
+             * en lugar de devolver true normalmente.
+             */
+            return true;
+        });
+    }
+
+    /*
+     * ========================================================
+     * MÉTODO eliminar()
+     * ========================================================
+     *
+     * OBJETIVO:
+     *
+     * Eliminar un cliente utilizando su identificador.
+     *
+     * PARÁMETRO:
+     *
+     * int id
+     *
+     * Identificador del cliente que queremos eliminar.
+     *
+     * VALOR DEVUELTO:
+     *
+     * true:
+     *     El cliente existe y la eliminación se confirma.
+     *
+     * false:
+     *     No existe ningún cliente con ese ID.
+     *
+     * Si PostgreSQL impide la eliminación, por ejemplo
+     * debido a una restricción de clave foránea,
+     * se propagará una excepción.
+     */
+    public boolean eliminar(int id) {
+
+        /*
+         * Ejecutamos la eliminación dentro de una transacción.
+         *
+         * TransaccionesORM gestionará begin(), commit(),
+         * rollback() y el cierre del EntityManager.
+         */
+        return TransaccionesORM.ejecutar(em -> {
+
+            /*
+             * ====================================================
+             * PASO 1: BUSCAR LA ENTIDAD
+             * ====================================================
+             *
+             * Antes de eliminar un cliente necesitamos
+             * recuperar su entidad gestionada.
+             *
+             * em.find() devuelve:
+             *
+             * - Un ClienteEntidad si existe.
+             * - null si no existe.
+             *
+             * Buscamos por la clave primaria id.
+             */
+            ClienteEntidad actual = em.find(
+                    ClienteEntidad.class,
+                    id
+            );
+
+            /*
+             * ====================================================
+             * PASO 2: COMPROBAR SU EXISTENCIA
+             * ====================================================
+             *
+             * Si el cliente no existe, no hay nada que eliminar.
+             *
+             * Devolvemos false.
+             */
+            if (actual == null) {
+                return false;
+            }
+
+            /*
+             * ====================================================
+             * PASO 3: ELIMINAR LA ENTIDAD
+             * ====================================================
+             *
+             * em.remove() solicita la eliminación
+             * de una entidad gestionada.
+             *
+             * IMPORTANTE:
+             *
+             * remove() debe recibir una entidad gestionada
+             * por el EntityManager actual.
+             *
+             * Por eso primero utilizamos em.find().
+             *
+             * Después de llamar a remove(), la entidad
+             * queda marcada como eliminada.
+             *
+             * Hibernate generará la sentencia DELETE
+             * cuando sincronice el contexto.
+             *
+             * Una sentencia SQL equivalente sería:
+             *
+             * DELETE FROM cliente
+             * WHERE id = ?
+             *
+             * No necesitamos construirla manualmente.
+             *
+             * La eliminación se confirmará cuando
+             * TransaccionesORM ejecute commit().
+             */
+            em.remove(actual);
+
+            /*
+             * Devolvemos true porque hemos encontrado
+             * el cliente y solicitado su eliminación.
+             *
+             * El resultado se entregará al llamador
+             * después de confirmar la transacción.
+             */
+            return true;
+        });
     }
 }
