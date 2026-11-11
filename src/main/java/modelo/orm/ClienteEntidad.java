@@ -509,9 +509,9 @@ public class ClienteEntidad {
      */
     public ClienteEntidad(
             Integer id,
-            boolean activo,
+            String nombre,
             String email,
-            String nombre) {
+            boolean activo) {
 
         this.id = id;
         this.activo = activo;
